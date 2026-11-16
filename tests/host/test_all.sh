@@ -31,4 +31,5 @@ echo "patches: fastfile table, PCX sizes, level maps through mc_le.h; frame as A
 ${CC:-cc} -std=c99 -Wall -Wextra -DMC_LE_SWAP -I"$ROOT/amiga" -o "$T/test_le" "$HERE/test_le.c"
 "$T/test_le" "$MC/assets/moonchild/mc.art" "$MC/assets/moonchild/lvl11.map" > "$T/le.txt"
 python3 -I "$HERE/check_data.py" "$MC/assets/moonchild" "$T/le.txt" lvl11.map
+python3 -I "$HERE/test_lha.py"
 echo PASS
