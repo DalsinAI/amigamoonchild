@@ -1,0 +1,100 @@
+# Moon Child for GFOS (AmigaOS 3.2 with GFOpenUp), 68040/68060 + FPU, on
+# GFOpenUp's SDL 2 (LIBS:GFOpenGPU/SDL2.module and SDL2_mixer.module) and
+# z.library (GFOpenZlib).
+#
+#   make -f amiga/Makefile.amigaos -j4 MC=/path/to/moonchild ZSDK=/path/to/Include_H \
+#        [STOVE=/path/to/os32-gcc16-open6]
+#
+# MC is upstream Moon Child at the commit package/moonchild.lock names, with
+# amiga/patches applied and its own zlib.h, zconf.h and unzip.c removed;
+# ZSDK is z.library's SDK headers (package/build-amiga.sh fetches both).
+# STOVE is a GFOpenAmigaGCC 16.2.0-open6 stove: its prefix/ has the
+# compiler, the NDK and GFOpenGPU's SDL 2 kit (prefix/m68k-amigaos).
+#
+# Output: build/amigaos/MoonChild/ (the drawer: MoonChild, Data/ with the
+# game's art, levels, sounds and music, User/, ReadMe, Controls, the
+# licences, with GlowIcons), build/amigaos/MoonChild.info and
+# Install-MoonChild beside them. The MP4 cut scenes are not built or shipped
+# (amiga/MoviePlayer_amiga.cpp).
+
+MC      ?= ../moonchild
+ZSDK    ?= ../zsdk/Include_H
+STOVE   ?= $(HOME)/AmiCradle/stoves/os32-gcc16-open6
+PREFIX  ?= $(STOVE)/prefix
+SDL2KIT ?= $(PREFIX)/m68k-amigaos
+CC      = $(PREFIX)/bin/m68k-amigaos-gcc
+CXX     = $(PREFIX)/bin/m68k-amigaos-g++
+STRIP   = $(PREFIX)/bin/m68k-amigaos-strip
+# hard float: GFOpenGPU's SDL 2 kit is built -m68881
+CPU     ?= -m68040 -m68881
+# -fno-tree-loop-distribute-patterns: GCC 16's loop miscompile (the kit's
+# sdl2-config gives it for GCC 16 too).
+OPT     ?= -O2 -fomit-frame-pointer -fno-tree-loop-distribute-patterns
+
+DEFS    = -D__amigaos__
+# amiga/ first: its zlib.h answers fastfile.cpp
+INC     = -Iamiga -I$(MC)/src -I$(MC)/src/moonchild -I$(MC)/src/framewrk \
+          -I$(SDL2KIT)/include/SDL2 -I$(ZSDK)
+CFLAGS  = -noixemul $(OPT) $(CPU) -std=gnu11 $(DEFS) $(INC)
+# the 1997 code: string literals to char *, old casts
+CXXFLAGS = -noixemul $(OPT) $(CPU) -std=gnu++17 -fpermissive -Wno-write-strings \
+          -Wno-narrowing $(DEFS) $(INC)
+LDFLAGS = -noixemul $(CPU)
+LIBS    = -L$(SDL2KIT)/lib -lSDL2_mixer -lSDL2 -lpthread -latomic -lm
+
+BUILD   = build/amigaos
+OBJDIR  = $(BUILD)/obj
+OUT     = $(BUILD)/MoonChild
+PROG    = MoonChild
+
+# every source upstream's CMake globs, but its FFmpeg movie player and the
+# unused unzip.c
+SRC_CXX = $(filter-out $(MC)/src/MoviePlayer.cpp,$(wildcard $(MC)/src/*.cpp)) \
+          $(wildcard $(MC)/src/framewrk/*.cpp) $(wildcard $(MC)/src/moonchild/*.cpp)
+OBJS    = $(patsubst $(MC)/src/%.cpp,$(OBJDIR)/src/%.o,$(SRC_CXX)) \
+          $(OBJDIR)/amiga/MoviePlayer_amiga.o $(OBJDIR)/amiga/mc_zlib.o \
+          $(OBJDIR)/amiga/amiga_start.o
+
+all: $(OUT)/$(PROG) package
+
+$(BUILD)/$(PROG).debug: $(OBJS)
+	@mkdir -p $(BUILD)
+	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+
+$(OUT)/$(PROG): $(BUILD)/$(PROG).debug
+	@mkdir -p $(OUT)
+	$(STRIP) -o $@ $<
+
+package: $(OUT)/$(PROG) AMIGA_PORT.md amiga/Licences.txt amiga/Controls
+	mkdir -p $(OUT)/User $(OUT)/Data/moonchild $(OUT)/Data/audio
+	cp $(MC)/assets/moonchild/* $(OUT)/Data/moonchild/
+	cp $(MC)/assets/audio/*.wav $(MC)/assets/audio/*.mp3 $(OUT)/Data/audio/
+	cp amiga/Controls $(OUT)/Controls
+	cp AMIGA_PORT.md $(OUT)/ReadMe
+	cp $(MC)/LICENSE $(OUT)/LICENSE.txt
+	cp $(MC)/README.md $(OUT)/README-MoonChild.txt
+	cp amiga/Licences.txt $(OUT)/Licences.txt
+	cp amiga/icons/MoonChild.info amiga/icons/ReadMe.info $(OUT)/
+	for f in LICENSE.txt README-MoonChild.txt Licences.txt Controls; do \
+	    cp amiga/icons/ReadMe.info $(OUT)/$$f.info; done
+	cp amiga/icons/Data.info $(OUT)/User.info
+	cp amiga/icons/Data.info $(OUT)/Data.info
+	cp amiga/icons/MoonChild-drawer.info $(BUILD)/MoonChild.info
+	cp amiga/Install-MoonChild amiga/Install-MoonChild.info $(BUILD)/
+
+$(OBJDIR)/src/%.o: $(MC)/src/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+$(OBJDIR)/amiga/%.o: amiga/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+$(OBJDIR)/amiga/%.o: amiga/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -rf $(BUILD)
+
+.PHONY: all package clean

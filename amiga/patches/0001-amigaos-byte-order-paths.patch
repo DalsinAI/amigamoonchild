@@ -1,0 +1,200 @@
+diff --git a/src/Util.cpp b/src/Util.cpp
+index 52d0043..c798cea 100644
+--- a/src/Util.cpp
++++ b/src/Util.cpp
+@@ -10,6 +10,33 @@ char prefApp[] = "moonchild_shell";
+ 
+ }  // namespace
+ 
++#ifdef __amigaos__
++// AmigaOS: the game's data are in its drawer's Data drawer, the player's
++// files (high scores, options) in its User drawer. PROGDIR: is the drawer.
++static char *amigaPath(char *buffer, size_t size, const char *dir, const char *filename) {
++  if (!filename) {
++    return nullptr;
++  }
++  snprintf(buffer, size, "PROGDIR:%s/%s", dir, filename);
++  return buffer;
++}
++char *FullPath(char *filename) {
++  static char buffer[512];
++  return amigaPath(buffer, sizeof(buffer), "Data/moonchild", filename);
++}
++char *FullAudioPath(char *filename) {
++  static char buffer[512];
++  return amigaPath(buffer, sizeof(buffer), "Data/audio", filename);
++}
++char *FullMoviePath(char *filename) {
++  static char buffer[512];
++  return amigaPath(buffer, sizeof(buffer), "Data/movies", filename);
++}
++char *FullWritablePath(char *filename) {
++  static char buffer[512];
++  return amigaPath(buffer, sizeof(buffer), "User", filename);
++}
++#else
+ // Called by the game to get the full path to a file
+ char *FullPath(char *filename) {
+   static char buffer[4096];
+@@ -73,6 +100,8 @@ char *FullWritablePath(char *filename) {
+   return buffer;
+ }
+ 
++#endif  // __amigaos__
++
+ // Internal method (only used here) to load a TGA file
+ typedef unsigned char BYTE;
+ unsigned short*LoadTGA(char *FileName)
+diff --git a/src/framewrk/fastfile.cpp b/src/framewrk/fastfile.cpp
+index 744c907..9d73f6f 100644
+--- a/src/framewrk/fastfile.cpp
++++ b/src/framewrk/fastfile.cpp
+@@ -20,6 +20,7 @@
+ #include <string.h>
+ #include "fastfile.h"
+ #include "mydefs.hpp"
++#include "mc_le.h"
+ 
+ // strip the directory path of all files provided to open
+ #define USEBASENAME 1
+@@ -164,12 +165,15 @@ int FastFileInit( char *fname, int max_handles )
+ //		LOG("fastfileopen\n");
+ 
+ 		fread(&dwFECnt, 1, 4, fHndl);
++		dwFECnt = MC_LE32(dwFECnt);	// the fastfile is little-endian
+ 
+ 		pBase = (BYTE *) malloc(sizeof(FILEENTRY) * dwFECnt + 4);
+ 		memcpy((void *)pBase, (void *)&dwFECnt, 4);
+ 
+ 		pFE = (FILEENTRY *)(pBase+4);
+ 		fread(pFE, 1, sizeof(FILEENTRY) * dwFECnt, fHndl);
++		for (int e = 0; e < (int)dwFECnt; e++)
++			pFE[e].offset = MC_LE32(pFE[e].offset);
+ 		fseek(fHndl, 0, SEEK_SET );		// rewind
+ 	    lFileEnd = pFE[dwFECnt-1].offset;
+ 
+diff --git a/src/framewrk/pcxff.cpp b/src/framewrk/pcxff.cpp
+index b6d5fff..032fdb1 100644
+--- a/src/framewrk/pcxff.cpp
++++ b/src/framewrk/pcxff.cpp
+@@ -8,6 +8,7 @@
+ 
+ #if 1   // we gebruiken ff de gzip versie
+ #include "frm_int.hpp"
++#include "mc_le.h"
+ 
+ 
+ VG_BOOLEAN PCX_ff_save(char *fname, BYTE *buffer, UINT16 width, UINT16 height, BYTE *palette)
+@@ -34,6 +35,8 @@ VG_BOOLEAN PCX_ff_stat(char *fname, UINT16 *width, UINT16 *height)
+   rc = FastFileSeek(fp, 8, SEEK_SET);
+   rc = FastFileRead(fp, width, 2);
+   rc = FastFileRead(fp, height, 2);
++  *width = MC_LE16(*width);	// PCX is little-endian
++  *height = MC_LE16(*height);
+   
+ 
+   *width += 1;  // PCX counts to width-1 and height-1
+@@ -79,6 +82,8 @@ VG_BOOLEAN PCX_ff_load(char *fname, BYTE *buffer, BYTE *palette)
+ 	rc = FastFileRead(fp, &xsize, 2);
+ //	vgassert(rc);
+ 	rc = FastFileRead(fp, &ysize, 2);
++	xsize = MC_LE16(xsize);
++	ysize = MC_LE16(ysize);
+ //	vgassert(rc);
+ 	
+ 	xsize += 1;
+@@ -191,6 +196,8 @@ void PCX_ff_dump(char *filename, FILE *out)
+   rc = FastFileRead(fp, &width, 2*1);
+ //  vgassert(rc);
+   rc = FastFileRead(fp, &height, 2*1);
++  width = MC_LE16(width);
++  height = MC_LE16(height);
+ //  vgassert(rc);
+ 
+   width += 1;  // PCX counts to width-1 and height-1
+diff --git a/src/framewrk/sprite.cpp b/src/framewrk/sprite.cpp
+index 9750efa..a2dc247 100644
+--- a/src/framewrk/sprite.cpp
++++ b/src/framewrk/sprite.cpp
+@@ -1,5 +1,6 @@
+ #include "frm_int.hpp"
+ #include <stdlib.h>
++#include <string.h>
+ Cspr_frame::Cspr_frame(COMP_SPRITE *dc, UINT16 w, UINT16 h, INT16 hx, INT16 hy)
+ {
+ }
+@@ -323,10 +324,9 @@ UINT16 frmwrk_fastblit(Cblitbuf *src, Cblitbuf &dest, int x1, int y1, int x2, in
+ 					{
+ 						unsigned int temp;
+ 						temp = 0;
+-						temp =  (*Src++);
+-						temp |= ((int)(*Src++)) << 8;
+-						temp |= ((int)(*Src++)) << 16;
+-						temp |= ((int)(*Src++)) << 24;
++						// four pixels, in memory order on either byte order
++						memcpy(&temp, Src, 4);
++						Src += 4;
+ 						*(((unsigned int *)Dest)) = temp;
+ 						Dest+=4;
+ 						a+=4;
+diff --git a/src/main.cpp b/src/main.cpp
+index 49261da..0ffd1be 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -85,7 +85,9 @@ bool initSDL() {
+   }
+ 
+   frameTexture =
+-      SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA32, SDL_TEXTUREACCESS_STREAMING,
++      // the frame is 32-bit words 0xAARRGGBB (video.cpp's palette): ARGB8888
++      // is that word in memory on either byte order (BGRA32 on x86)
++      SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
+                         screenWidth, screenHeight);
+   if (!frameTexture) {
+     fprintf(stderr, "SDL_CreateTexture failed: %s\n", SDL_GetError());
+diff --git a/src/moonchild/mc.cpp b/src/moonchild/mc.cpp
+index 33c1fd2..e3e1e6c 100644
+--- a/src/moonchild/mc.cpp
++++ b/src/moonchild/mc.cpp
+@@ -98,6 +98,7 @@ int	  FirstTimeShowCredzFlg;
+ #include <stdlib.h>
+ //#include <fstream.h>
+ #include <frm_wrk.hpp>
++#include "mc_le.h"
+ //#include <conio.h>
+ #include <math.h>
+ #include <mc.hpp>
+@@ -925,7 +926,11 @@ void save_options(void)
+   optsavebuf[7] = prefs->leftkey;
+   optsavebuf[8] = prefs->rightkey;
+   
++#ifdef __amigaos__
++  savedocfile("mc_opts.dat", (char *) optsavebuf, 18);	// PROGDIR:User
++#else
+   savefile("mc_opts.dat", (char *) optsavebuf, 18);
++#endif
+ 
+ }
+ 
+@@ -933,7 +938,11 @@ void save_options(void)
+ void load_options(void)
+ {
+   UINT16 rc;
++#ifdef __amigaos__
++  rc = loaddocfile("mc_opts.dat", (char *) optsavebuf, 18);
++#else
+   rc = loadfile("mc_opts.dat", (char *) optsavebuf, 18);
++#endif
+ 
+   if (rc)
+   {
+@@ -5034,6 +5043,9 @@ void prep_engine(void)
+ // LOAD MAPDATA AND DRAW LEVEL
+ 
+   rc = loadfile(levels[world][level].map, (char *) player1.loadedmap->map, player1.loadedmap->mapsizex*player1.loadedmap->mapsizey/(32*32) *sizeof(UINT16));
++  // the map files hold little-endian 16-bit block numbers
++  for (UINT32 b = 0; b < (UINT32)(player1.loadedmap->mapsizex*player1.loadedmap->mapsizey/(32*32)); b++)
++    player1.loadedmap->map[b] = MC_LE16(player1.loadedmap->map[b]);
+   rc = loadfile(levels[world][level].colmap,(char *)colmap, player1.loadedmap->mapsizex*(player1.loadedmap->mapsizey+32)/(16*16) * sizeof(unsigned char));
+   player1.curmap = player1.loadedmap;
+   player2.curmap = player2.loadedmap;
