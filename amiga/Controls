@@ -1,0 +1,13 @@
+Moon Child: the keys
+====================
+
+  Cursor left/right   walk
+  Cursor up           jump (and up in the menus)
+  Cursor down         duck, and down in the menus
+  Space               fire in world 3; work the switches in world 1;
+                      choose in the menus
+  Esc                 leave the level, back to the menu
+  Mouse               the menu buttons
+
+The game keeps its options (music, sound, keys) and the high score table
+in the drawer's User drawer.

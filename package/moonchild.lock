@@ -1,0 +1,12 @@
+# The upstream Moon Child the port builds (Reinier van Vliet's SDL source
+# release of the 1997 game): fetched at this commit by
+# package/build-amiga.sh, never kept in this repository.
+MOONCHILD_URL=https://bitbucket.org/rhinoid/moonchild
+MOONCHILD_COMMIT=f8e0ff358432f4b6324ab74547d6fa8135d49d71
+MOONCHILD_VERSION=2026.08.18
+PORT_VERSION=2026.08.18-gfos1
+# z.library's SDK headers (proto/z.h and its inline, clib and libraries
+# files), from GFOpenZlib in amicradle-guest at this commit
+ZSDK_URL=https://github.com/DalsinAI/amicradle-guest
+ZSDK_COMMIT=987341216eb2176b6fa283df9b8823fbe1856b10
+ZSDK_PATH=libraries/openzlib/sdk/Include_H

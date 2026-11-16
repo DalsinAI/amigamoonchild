@@ -1,0 +1,15 @@
+{
+  "name": "Moon Child",
+  "version": "2026.08.18-gfos1",
+  "drawer": "MoonChild",
+  "program": "MoonChild",
+  "cpu": "68040",
+  "fpu": true,
+  "space": 50000000,
+  "modules": ["SDL2.module", "SDL2_mixer.module"],
+  "libraries": [],
+  "keep": ["User"],
+  "parent": "Work:Games",
+  "badge": "icons/art/moonchild.png",
+  "script": "Install-MoonChild"
+}

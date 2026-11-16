@@ -1,0 +1,21 @@
+Moon Child: licences
+====================
+
+The game: Moon Child by Reinier van Vliet (1997), in his own SDL version,
+released in 2026 at https://bitbucket.org/rhinoid/moonchild.
+
+- The program (its source code) is under the MIT licence, Copyright (c)
+  2026 Reinier van Vliet (LICENSE.txt).
+- The game's assets (Data/: pictures, levels, sounds and music) are under
+  the Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+  International licence (https://creativecommons.org/licenses/by-nc-sa/4.0/,
+  and LICENSE.txt): they may be shared and changed, not for commercial
+  purposes, with credit, under the same licence.
+- SDL 2, SDL2_mixer and z.library are GFOpenUp's and GFOS's (LIBS:), not
+  in this drawer.
+- The Amiga port's own files (amiga/, AMIGA_PORT.md, package/, tools/,
+  tests/) are MIT, like the game's code; the GlowIcon art is The
+  AmiCradle Team's own.
+
+The game's assets are upstream's own, unchanged. The cut-scene movies are
+not included (see the ReadMe).
